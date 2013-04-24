@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Xml;
 using GameEngine.Extensions;
@@ -16,6 +17,9 @@ namespace GameEngine.Drawing
     /// </summary>
     public class Animation : IGameDrawable
     {
+        public delegate void AnimationFinishedEventHandler (Animation anim, EventArgs e);
+        public event AnimationFinishedEventHandler onAnimationFinished;
+
         internal const int FRAME_DELAY_DEFAULT = 100;
 
         public Texture2D SpriteSheet { get; set; }
@@ -64,6 +68,13 @@ namespace GameEngine.Drawing
         public int GetFrameIndex(double elapsedMS)
         {
             int index = (int) Math.Abs((elapsedMS) / FrameDelay);
+
+            // Check for animation finished event
+            if (!Loop && index > Frames.Length)
+            {
+                if (onAnimationFinished != null)
+                    onAnimationFinished(this, new EventArgs());
+            }
 
             return (Loop)? index % Frames.Length : index;               //If looping, start from the beginning
         }
