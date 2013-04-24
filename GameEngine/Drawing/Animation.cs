@@ -17,7 +17,7 @@ namespace GameEngine.Drawing
     /// </summary>
     public class Animation : IGameDrawable
     {
-        public delegate void AnimationFinishedEventHandler (Animation anim, EventArgs e);
+        public delegate void AnimationFinishedEventHandler (Animation anim);
         public event AnimationFinishedEventHandler onAnimationFinished;
 
         internal const int FRAME_DELAY_DEFAULT = 100;
@@ -73,7 +73,7 @@ namespace GameEngine.Drawing
             if (!Loop && index > Frames.Length)
             {
                 if (onAnimationFinished != null)
-                    onAnimationFinished(this, new EventArgs());
+                    onAnimationFinished(this);
             }
 
             return (Loop)? index % Frames.Length : index;               //If looping, start from the beginning
