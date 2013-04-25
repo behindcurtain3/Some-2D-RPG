@@ -65,7 +65,7 @@ namespace GameEngine
         /// <summary>
         /// List of currently registered GameShaders in use by the TeeEngine.
         /// </summary>
-        public List<PostGameShader> GameShaders { get; private set; }
+        public ICollection<PostGameShader> GameShaders { get { return _postGameShaders.Values; } }
 
         /// <summary>
         /// Current QuadTree built during the latest Update call.
@@ -91,10 +91,12 @@ namespace GameEngine
 
         #region Internal Members
 
-        List<Entity> _entityCreate = new List<Entity>();                // A list of entities which need to be added.
-        List<Entity> _entityDestroy = new List<Entity>();                 // A list of named entities that are in need of removal.
+        // Entity creation and destroy lists.
+        List<Entity> _entityCreate = new List<Entity>();               
+        List<Entity> _entityDestroy = new List<Entity>();
         
-        Dictionary<string, Entity> _entities = new Dictionary<string, Entity>();        // Internal storage structure for entities added to the engine.
+        Dictionary<string, Entity> _entities = new Dictionary<string, Entity>();        
+        Dictionary<string, PostGameShader> _postGameShaders = new Dictionary<string,PostGameShader>();
         RenderTarget2D _inputBuffer;
         RenderTarget2D _outputBuffer;
         RenderTarget2D _dummyBuffer;
@@ -127,7 +129,6 @@ namespace GameEngine
             EntitiesOnScreen = new List<Entity>();
 
             DebugInfo = new DebugInfo();
-            GameShaders = new List<PostGameShader>();
 
             SetResolution(pixelWidth, pixelHeight);
             game.Components.Add(this);
@@ -336,22 +337,38 @@ namespace GameEngine
 
         #region Shader Related Functions
 
-        public bool IsRegistered(PostGameShader shader)
+        public bool IsRegistered(string shaderName)
         {
-            return GameShaders.Contains(shader);
+            return _postGameShaders.ContainsKey(shaderName);
         }
 
-        public void RegisterGameShader(PostGameShader shader)
+        public bool IsRegistered(PostGameShader shader)
         {
-            GameShaders.Add(shader);
+            return _postGameShaders.ContainsValue(shader);
+        }
+
+        public PostGameShader GetPostGameShader(string shaderName)
+        {
+            return _postGameShaders[shaderName];
+        }
+
+        public void RegisterGameShader(string shaderName, PostGameShader shader)
+        {
+            _postGameShaders.Add(shaderName, shader);
             shader.LoadContent(this.Game.Content);
             shader.SetResolution(PixelWidth, PixelHeight);
         }
 
-        public bool UnregisterGameShader(PostGameShader shader)
+        public bool UnregisterGameShader(string shaderName)
         {
-            shader.UnloadContent();
-            return GameShaders.Remove(shader);
+            if (_postGameShaders.ContainsKey(shaderName))
+            {
+                PostGameShader shader = _postGameShaders[shaderName];
+                shader.UnloadContent();
+
+                return _postGameShaders.Remove(shaderName);
+            }
+            else return false;
         }
 
         #endregion
@@ -644,64 +661,69 @@ namespace GameEngine
                     }
 
                     // DRAW EVERY GAMEDRAWABLE INSTANCE CURRENTLY ACTIVE IN THE ENTITIES DRAWABLE SET.
-                    foreach (GameDrawableInstance drawable in entity.Drawables.GetByState(entity.CurrentDrawableState))
+                    List<GameDrawableInstance> drawableInstances = entity.Drawables.GetByState(entity.CurrentDrawableState);
+
+                    if (drawableInstances != null)
                     {
-                        if (!drawable.Visible) continue;
+                        foreach (GameDrawableInstance drawable in drawableInstances)
+                        {
+                            if (!drawable.Visible) continue;
 
-                        // The relative position of the object should always be (X,Y) - (globalDispX, globalDispY). globalDispX and globalDispY
-                        // are based on viewPortInfo.TopLeftX and viewPortInfo.TopLeftY. viewPortInfo.TopLeftX and viewPortInfo.TopLeftY have 
-                        // already been corrected in terms of the bounds of the WORLD map coordinates. This allows for panning at the edges.
-                        Rectangle pxCurrentFrame = drawable.GetSourceRectangle(LastUpdateTime);
+                            // The relative position of the object should always be (X,Y) - (globalDispX, globalDispY). globalDispX and globalDispY
+                            // are based on viewPortInfo.TopLeftX and viewPortInfo.TopLeftY. viewPortInfo.TopLeftX and viewPortInfo.TopLeftY have 
+                            // already been corrected in terms of the bounds of the WORLD map coordinates. This allows for panning at the edges.
+                            Rectangle pxCurrentFrame = drawable.GetSourceRectangle(LastUpdateTime);
 
-                        int pxObjectWidth  = (int) Math.Ceiling(pxCurrentFrame.Width * entity.ScaleX * viewPortInfo.ActualZoom);
-                        int pxObjectHeight = (int) Math.Ceiling(pxCurrentFrame.Height * entity.ScaleY * viewPortInfo.ActualZoom);
+                            int pxObjectWidth = (int)Math.Ceiling(pxCurrentFrame.Width * entity.ScaleX * viewPortInfo.ActualZoom);
+                            int pxObjectHeight = (int)Math.Ceiling(pxCurrentFrame.Height * entity.ScaleY * viewPortInfo.ActualZoom);
 
-                        // Draw the Object based on the current Frame dimensions and the specified Object Width Height values.
-                        Rectangle objectDestRect = new Rectangle(
-                                (int) Math.Ceiling(pxAbsEntityPos.X) + (int) Math.Ceiling(drawable.Offset.X * viewPortInfo.ActualZoom),
-                                (int) Math.Ceiling(pxAbsEntityPos.Y) + (int) Math.Ceiling(drawable.Offset.Y * viewPortInfo.ActualZoom),
-                                pxObjectWidth,
-                                pxObjectHeight
-                        );
-
-                        Vector2 drawableOrigin = new Vector2(
-                            (float) Math.Ceiling(drawable.Drawable.Origin.X * pxCurrentFrame.Width),
-                            (float) Math.Ceiling(drawable.Drawable.Origin.Y * pxCurrentFrame.Height)
+                            // Draw the Object based on the current Frame dimensions and the specified Object Width Height values.
+                            Rectangle objectDestRect = new Rectangle(
+                                    (int)Math.Ceiling(pxAbsEntityPos.X) + (int)Math.Ceiling(drawable.Offset.X * viewPortInfo.ActualZoom),
+                                    (int)Math.Ceiling(pxAbsEntityPos.Y) + (int)Math.Ceiling(drawable.Offset.Y * viewPortInfo.ActualZoom),
+                                    pxObjectWidth,
+                                    pxObjectHeight
                             );
 
-                        Color drawableColor = new Color()
-                        {
-                            R = drawable.Color.R,
-                            G = drawable.Color.G,
-                            B = drawable.Color.B,
-                            A = (byte)(drawable.Color.A * entity.Opacity)
-                        };
+                            Vector2 drawableOrigin = new Vector2(
+                                (float)Math.Ceiling(drawable.Drawable.Origin.X * pxCurrentFrame.Width),
+                                (float)Math.Ceiling(drawable.Drawable.Origin.Y * pxCurrentFrame.Height)
+                                );
 
-                        // Layer depth should depend how far down the object is on the map (Relative to Y).
-                        // Important to also take into account the animation layers for the entity.
-                        float layerDepth = Math.Min(0.99f, 1 / (entity.Pos.Y + ((float)drawable.Layer / Map.pxHeight)));
+                            Color drawableColor = new Color()
+                            {
+                                R = drawable.Color.R,
+                                G = drawable.Color.G,
+                                B = drawable.Color.B,
+                                A = (byte)(drawable.Color.A * entity.Opacity)
+                            };
 
-                        // FINALLY ... DRAW
-                        spriteBatch.Draw(
-                            drawable.GetSourceTexture(LastUpdateTime),
-                            objectDestRect,
-                            pxCurrentFrame,
-                            drawableColor,
-                            drawable.Rotation,
-                            drawableOrigin,
-                            drawable.SpriteEffects,
-                            layerDepth);
+                            // Layer depth should depend how far down the object is on the map (Relative to Y).
+                            // Important to also take into account the animation layers for the entity.
+                            float layerDepth = Math.Min(0.99f, 1 / (entity.Pos.Y + ((float)drawable.Layer / Map.pxHeight)));
 
-                        // DRAW BOUNDING BOXES OF EACH INDIVIDUAL DRAWABLE COMPONENT
-                        if (DrawingOptions.ShowDrawableComponents)
-                        {
-                            Rectangle drawableComponentRect = new Rectangle(
-                                (int) Math.Floor(objectDestRect.X - objectDestRect.Width * drawable.Drawable.Origin.X),
-                                (int) Math.Floor(objectDestRect.Y - objectDestRect.Height * drawable.Drawable.Origin.Y),
-                                objectDestRect.Width, objectDestRect.Height);
+                            // FINALLY ... DRAW
+                            spriteBatch.Draw(
+                                drawable.GetSourceTexture(LastUpdateTime),
+                                objectDestRect,
+                                pxCurrentFrame,
+                                drawableColor,
+                                drawable.Rotation,
+                                drawableOrigin,
+                                drawable.SpriteEffects,
+                                layerDepth);
 
-                            SpriteBatchExtensions.DrawRectangle(
-                                spriteBatch, drawableComponentRect, Color.Blue, 0);
+                            // DRAW BOUNDING BOXES OF EACH INDIVIDUAL DRAWABLE COMPONENT
+                            if (DrawingOptions.ShowDrawableComponents)
+                            {
+                                Rectangle drawableComponentRect = new Rectangle(
+                                    (int)Math.Floor(objectDestRect.X - objectDestRect.Width * drawable.Drawable.Origin.X),
+                                    (int)Math.Floor(objectDestRect.Y - objectDestRect.Height * drawable.Drawable.Origin.Y),
+                                    objectDestRect.Width, objectDestRect.Height);
+
+                                SpriteBatchExtensions.DrawRectangle(
+                                    spriteBatch, drawableComponentRect, Color.Blue, 0);
+                            }
                         }
                     }
 
@@ -727,11 +749,11 @@ namespace GameEngine
 
             _watch1.Restart();
             // APPLY GAME SHADERS TO THE RESULTANT IMAGE
-            for (int i = 0; i < GameShaders.Count; i++)
+            foreach(PostGameShader postGameShader in GameShaders)
             {
-                if (GameShaders[i].Enabled)
+                if (postGameShader.Enabled)
                 {
-                    GameShaders[i].ApplyShader(spriteBatch, viewPortInfo, LastUpdateTime, _inputBuffer, _outputBuffer);
+                    postGameShader.ApplyShader(spriteBatch, viewPortInfo, LastUpdateTime, _inputBuffer, _outputBuffer);
 
                     // Swap buffers after each render.
                     _dummyBuffer = _inputBuffer;
