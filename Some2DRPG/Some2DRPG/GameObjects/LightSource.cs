@@ -10,12 +10,19 @@ namespace Some2DRPG.GameObjects
         public int Width { get; set; }
         public int Height { get; set; }
 
+        public float Pulse { get; set; }
+        public double PulseStartTime { get; set; }
+        public double PulseDuration { get; set; }
+
         public LightPositionType PositionType { get; set; }
 
         public Color Color { get; set; }
 
         public LightSource()
         {
+            PulseDuration = 1000.0;
+            PulseStartTime = 0;
+            Pulse = 0.0f;
             Color = Color.White;
             PositionType = LightPositionType.Relative;
         }

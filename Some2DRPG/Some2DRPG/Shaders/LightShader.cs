@@ -49,15 +49,15 @@ namespace Some2DRPG.Shaders
                 vertices[i * 3].Color = color;
 
                 vertices[i * 3 + 1].Position = new Vector3(
-                    (float)Math.Sin(angle * i) * radiusX + center.X,
-                    (float)Math.Cos(angle * i) * radiusY + center.Y,
+                    (float) Math.Sin(angle * i) * radiusX + center.X,
+                    (float) Math.Cos(angle * i) * radiusY + center.Y,
                     0.0f
                 );
                 vertices[i * 3 + 1].Color = Color.Black;
 
                 vertices[i * 3 + 2].Position = new Vector3(
-                    (float)Math.Sin(angle * (i + 1)) * radiusX + center.X,
-                    (float)Math.Cos(angle * (i + 1)) * radiusY + center.Y,
+                    (float) Math.Sin(angle * (i + 1)) * radiusX + center.X,
+                    (float) Math.Cos(angle * (i + 1)) * radiusY + center.Y,
                     0.0f
                 );
                 vertices[i * 3 + 2].Color = Color.Black;
@@ -115,6 +115,13 @@ namespace Some2DRPG.Shaders
 
                 float radiusX = lightSource.Width * viewPortInfo.ActualZoom;
                 float radiusY = lightSource.Height * viewPortInfo.ActualZoom;
+
+                double pulseValue = Math.Sin(
+                    MathHelper.Pi * 
+                    ((gameTime.TotalGameTime.TotalMilliseconds - lightSource.PulseStartTime) / lightSource.PulseDuration)
+                );
+                radiusX += (float) (lightSource.Pulse * lightSource.Width * pulseValue);
+                radiusY += (float) (lightSource.Pulse * lightSource.Height * pulseValue);
 
                 radiusX /= _lightTarget.Width;
                 radiusY /= _lightTarget.Height;
